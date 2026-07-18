@@ -3,7 +3,7 @@ import { Calculator } from './types';
 export const starterCalculator: Calculator = {
   id: 'salary-starter',
   name: 'Yearly salary',
-  variables: [{ id: 'annual-input', name: 'Annual salary', key: 'annual_salary' }],
+  variables: [{ id: 'annual-input', name: 'Annual salary', key: 'annual_salary', format: 'currency', decimals: 2 }],
   formulas: [
     {
       id: 'hourly-result',

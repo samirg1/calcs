@@ -6,6 +6,7 @@
     "@expo/ui": "~57.0.7",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.7",
+    "expo-clipboard": "~57.0.1",
     "expo-dev-client": "~57.0.7",
     "expo-haptics": "~57.0.1",
     "expo-status-bar": "~57.0.1",
@@ -15,7 +16,9 @@
     "react-native-safe-area-context": "~5.7.0"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
     "@types/react": "~19.2.2",
+    "tsx": "^4.23.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -23,6 +26,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "test": "tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit",
     "doctor": "expo-doctor"
   },

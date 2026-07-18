@@ -6,7 +6,9 @@ Calcs is a small iOS app for turning formulas you reuse into live, saved workshe
 
 - Bidirectional values: edit a base or calculated value and the others update
 - Multiple base values and calculated values per calculator
+- Number, AUD currency, or percentage display formatting for every value
 - Collapsible calculator cards
+- Manual creation or validated JSON import using instructions copied to any AI model
 - Results can reference inputs and earlier results
 - Safe formula parser: no arbitrary JavaScript evaluation
 - Local, offline persistence for calculators and values
@@ -24,6 +26,16 @@ Example:
 
 ```text
 annual_salary / (38 * 52)
+```
+
+## Agent import
+
+Tap add, choose **With Agent**, and describe the calculator. Calcs copies a prompt containing the request, supported formula syntax, and its versioned JSON contract. Paste the AI model's JSON response back into Calcs; it is validated before a calculator is created.
+
+Run the importer and creation tests with:
+
+```bash
+npm test
 ```
 
 ## Run locally

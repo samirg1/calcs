@@ -27,7 +27,7 @@ type Props = {
 const makeId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 function emptyVariable(): CalculatorVariable {
-  return { id: makeId(), name: '', key: '' };
+  return { id: makeId(), name: '', key: '', format: 'number', decimals: 2 };
 }
 
 function emptyFormula(): CalculatorFormula {
@@ -45,11 +45,13 @@ export function CalculatorEditor({ calculator, visible, onClose, onSave, onDelet
   const [draft, setDraft] = useState(initial);
 
   // A keyed child is used by the parent, so this state is recreated each time the sheet opens.
-  const updateVariable = (index: number, name: string) => {
+  const updateVariable = (index: number, patch: Partial<CalculatorVariable>) => {
     setDraft((current) => ({
       ...current,
       variables: current.variables.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, name, key: keyFromName(name) } : item,
+        itemIndex === index
+          ? { ...item, ...patch, ...(patch.name !== undefined ? { key: keyFromName(patch.name) } : {}) }
+          : item,
       ),
     }));
   };
@@ -133,34 +135,37 @@ export function CalculatorEditor({ calculator, visible, onClose, onSave, onDelet
             value={draft.name}
           />
 
-          <SectionHeader number="01" title="Base values" description="Independent values used by your formulas." />
-          <View style={styles.group}>
-            {draft.variables.map((variable, index) => (
-              <View key={variable.id} style={[styles.builderRow, index > 0 && styles.rowDivider]}>
-                <View style={styles.numberBadge}><Text style={styles.numberBadgeText}>{index + 1}</Text></View>
-                <TextInput
-                  autoCapitalize="words"
-                  onChangeText={(name) => updateVariable(index, name)}
-                  placeholder="Input name"
-                  placeholderTextColor="#636366"
-                  selectionColor="#0A84FF"
-                  style={styles.inlineField}
-                  value={variable.name}
-                />
+          <SectionHeader title="Base values" description="Independent values used by your formulas." />
+          {draft.variables.map((variable, index) => (
+            <View key={variable.id} style={styles.formulaCard}>
+              <View style={styles.formulaHeader}>
+                <Text style={styles.formulaCount}>VALUE {String(index + 1).padStart(2, '0')}</Text>
                 {draft.variables.length > 1 && (
                   <Pressable
                     hitSlop={10}
                     onPress={() => setDraft((current) => ({ ...current, variables: current.variables.filter((_, i) => i !== index) }))}
                   >
-                    <Text style={styles.remove}>−</Text>
+                    <Text style={styles.removeText}>Remove</Text>
                   </Pressable>
                 )}
               </View>
-            ))}
-          </View>
+              <FieldLabel label="Value name" />
+              <TextInput
+                autoCapitalize="words"
+                onChangeText={(name) => updateVariable(index, { name })}
+                placeholder="e.g. Annual salary"
+                placeholderTextColor="#636366"
+                selectionColor="#0A84FF"
+                style={styles.textField}
+                value={variable.name}
+              />
+              <FieldLabel label="Display" />
+              <FormatPicker value={variable.format ?? 'number'} onChange={(format) => updateVariable(index, { format })} />
+            </View>
+          ))}
           <NativeAction label="Add variable" onPress={() => setDraft((current) => ({ ...current, variables: [...current.variables, emptyVariable()] }))} />
 
-          <SectionHeader number="02" title="Calculated values" description="Formula-driven values that remain directly editable." />
+          <SectionHeader title="Calculated values" description="Formula-driven values that remain directly editable." />
           {draft.formulas.map((formula, index) => (
             <View key={formula.id} style={styles.formulaCard}>
               <View style={styles.formulaHeader}>
@@ -208,19 +213,7 @@ export function CalculatorEditor({ calculator, visible, onClose, onSave, onDelet
                 ))}
               </View>
               <FieldLabel label="Display" />
-              <View style={styles.segmented}>
-                {(['number', 'currency', 'percent'] as ValueFormat[]).map((format) => (
-                  <Pressable
-                    key={format}
-                    onPress={() => updateFormula(index, { format })}
-                    style={[styles.segment, formula.format === format && styles.segmentSelected]}
-                  >
-                    <Text style={[styles.segmentText, formula.format === format && styles.segmentTextSelected]}>
-                      {format === 'number' ? '123' : format === 'currency' ? '$' : '%'}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <FormatPicker value={formula.format} onChange={(format) => updateFormula(index, { format })} />
             </View>
           ))}
           <NativeAction label="Add result" onPress={() => setDraft((current) => ({ ...current, formulas: [...current.formulas, emptyFormula()] }))} />
@@ -253,7 +246,26 @@ function FieldLabel({ label }: { label: string }) {
   return <Text style={styles.fieldLabel}>{label}</Text>;
 }
 
-function SectionHeader({ number, title, description }: { number: string; title: string; description: string }) {
+function FormatPicker({ value, onChange }: { value: ValueFormat; onChange: (format: ValueFormat) => void }) {
+  return (
+    <View style={styles.segmented}>
+      {(['number', 'currency', 'percent'] as ValueFormat[]).map((format) => (
+        <Pressable
+          accessibilityLabel={`Display as ${format}`}
+          key={format}
+          onPress={() => onChange(format)}
+          style={[styles.segment, value === format && styles.segmentSelected]}
+        >
+          <Text style={[styles.segmentText, value === format && styles.segmentTextSelected]}>
+            {format === 'number' ? '123' : format === 'currency' ? '$' : '%'}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionCopy}>
@@ -305,13 +317,6 @@ const styles = StyleSheet.create({
   sectionCopy: { flex: 1 },
   sectionTitle: { color: '#FFFFFF', fontSize: 21, fontWeight: '600' },
   sectionDescription: { color: '#8E8E93', fontSize: 13, marginTop: 3 },
-  group: { backgroundColor: '#1C1C1E', borderRadius: 10, overflow: 'hidden' },
-  builderRow: { alignItems: 'center', flexDirection: 'row', minHeight: 60, paddingHorizontal: 13 },
-  rowDivider: { borderTopColor: '#38383A', borderTopWidth: StyleSheet.hairlineWidth, marginLeft: 14 },
-  numberBadge: { alignItems: 'center', backgroundColor: '#2C2C2E', borderRadius: 8, height: 28, justifyContent: 'center', marginRight: 10, width: 28 },
-  numberBadgeText: { color: '#8E8E93', fontSize: 12, fontWeight: '600' },
-  inlineField: { color: '#FFFFFF', flex: 1, fontSize: 16, paddingVertical: 12 },
-  remove: { color: '#FF453A', fontSize: 26, fontWeight: '300', paddingLeft: 12 },
   nativeActionWrap: { alignItems: 'flex-start', marginTop: 12, minHeight: 42 },
   formulaCard: { backgroundColor: '#1C1C1E', borderRadius: 12, marginBottom: 12, padding: 16 },
   formulaHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 },

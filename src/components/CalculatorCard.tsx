@@ -80,15 +80,32 @@ export const CalculatorCard = memo(function CalculatorCard({
               <TextInput
                 accessibilityLabel={variable.name}
                 keyboardType="decimal-pad"
+                onBlur={() => setActiveKey(null)}
                 onChangeText={(value) => {
+                  setDraftValues((current) => ({ ...current, [variable.key]: value }));
                   setPreferredSourceKey(variable.key);
                   onChangeValue(variable.key, value);
                 }}
+                onFocus={() => {
+                  setActiveKey(variable.key);
+                  setDraftValues((current) => ({ ...current, [variable.key]: values[variable.key] ?? '' }));
+                }}
                 placeholder="0"
                 placeholderTextColor="#636366"
+                selectTextOnFocus
                 selectionColor="#0A84FF"
                 style={styles.input}
-                value={values[variable.key] ?? ''}
+                value={
+                  activeKey === variable.key
+                    ? draftValues[variable.key] ?? ''
+                    : values[variable.key]?.trim()
+                      ? formatResult(
+                          Number(values[variable.key].replace(/[^0-9eE+.-]/g, '')),
+                          variable.format ?? 'number',
+                          variable.decimals ?? 2,
+                        )
+                      : ''
+                }
               />
             </View>
           ))}

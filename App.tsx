@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StatusBar as NativeStatusBar,
@@ -11,8 +12,10 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { AgentCalculatorImporter } from './src/components/AgentCalculatorImporter';
 import { CalculatorCard } from './src/components/CalculatorCard';
 import { CalculatorEditor } from './src/components/CalculatorEditor';
+import { CalculatorImportResult } from './src/calculatorImport';
 import { starterCalculator } from './src/sample';
 import { loadState, saveState } from './src/storage';
 import { Calculator, CalculatorValues } from './src/types';
@@ -24,6 +27,7 @@ export default function App() {
   const [editing, setEditing] = useState<Calculator | null>(null);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editorSession, setEditorSession] = useState(0);
+  const [agentImporterVisible, setAgentImporterVisible] = useState(false);
 
   useEffect(() => {
     void loadState().then((stored) => {
@@ -34,7 +38,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (hydrated) void saveState({ calculators, values });
+    if (hydrated) void saveState({ schemaVersion: 2, calculators, values });
   }, [calculators, hydrated, values]);
 
   const openEditor = (calculator: Calculator | null) => {
@@ -51,6 +55,21 @@ export default function App() {
     setEditorVisible(false);
   };
 
+  const importCalculator = ({ calculator, values: importedValues }: CalculatorImportResult) => {
+    setCalculators((current) => [...current, calculator]);
+    setValues((current) => ({ ...current, [calculator.id]: importedValues }));
+    setAgentImporterVisible(false);
+  };
+
+  const showCreationOptions = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('New calculator', 'Choose how you want to create it.', [
+      { text: 'Manual', onPress: () => openEditor(null) },
+      { text: 'With Agent', onPress: () => setAgentImporterVisible(true) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   const deleteCalculator = (id: string) => {
     setCalculators((current) => current.filter((item) => item.id !== id));
     setValues((current) => {
@@ -65,7 +84,7 @@ export default function App() {
   if (!hydrated) {
     return (
       <View style={styles.loading}>
-            <ActivityIndicator color="#0A84FF" />
+        <ActivityIndicator color="#0A84FF" />
       </View>
     );
   }
@@ -77,51 +96,48 @@ export default function App() {
         <NativeStatusBar barStyle="light-content" />
         <View style={styles.backgroundAccent} />
         <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <Text style={styles.title}>Calculators</Text>
-        </View>
-
-        {calculators.map((calculator) => (
-          <CalculatorCard
-            calculator={calculator}
-            key={calculator.id}
-            onChangeValue={(key, value) =>
-              setValues((current) => ({
-                ...current,
-                [calculator.id]: { ...current[calculator.id], [key]: value },
-              }))
-            }
-            onEdit={() => openEditor(calculator)}
-            values={values[calculator.id] ?? {}}
-          />
-        ))}
-
-        {!calculators.length && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptySymbol}>+</Text>
-            <Text style={styles.emptyTitle}>No Calculators</Text>
-            <Text style={styles.emptyCopy}>Tap the add button to create one.</Text>
+          contentContainerStyle={styles.scrollContent}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Calculators</Text>
           </View>
-        )}
 
-        <View style={styles.bottomSpace} />
+          {calculators.map((calculator) => (
+            <CalculatorCard
+              calculator={calculator}
+              key={calculator.id}
+              onChangeValue={(key, value) =>
+                setValues((current) => ({
+                  ...current,
+                  [calculator.id]: { ...current[calculator.id], [key]: value },
+                }))
+              }
+              onEdit={() => openEditor(calculator)}
+              values={values[calculator.id] ?? {}}
+            />
+          ))}
+
+          {!calculators.length && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptySymbol}>+</Text>
+              <Text style={styles.emptyTitle}>No Calculators</Text>
+              <Text style={styles.emptyCopy}>Tap the add button to create one.</Text>
+            </View>
+          )}
+
+          <View style={styles.bottomSpace} />
         </ScrollView>
 
         <View pointerEvents="box-none" style={styles.addDock}>
           <Pressable
-          accessibilityLabel="Add calculator"
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            openEditor(null);
-          }}
-          style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
-        >
-          <Text style={styles.plus}>+</Text>
+            accessibilityLabel="Add calculator"
+            onPress={showCreationOptions}
+            style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
+          >
+            <Text style={styles.plus}>+</Text>
           </Pressable>
         </View>
 
@@ -133,6 +149,14 @@ export default function App() {
             onDelete={editing ? deleteCalculator : null}
             onSave={saveCalculator}
             visible={editorVisible}
+          />
+        )}
+
+        {agentImporterVisible && (
+          <AgentCalculatorImporter
+            onClose={() => setAgentImporterVisible(false)}
+            onImport={importCalculator}
+            visible={agentImporterVisible}
           />
         )}
       </SafeAreaView>

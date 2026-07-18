@@ -4,6 +4,8 @@ export type CalculatorVariable = {
   id: string;
   name: string;
   key: string;
+  format: ValueFormat;
+  decimals: number;
 };
 
 export type CalculatorFormula = {
@@ -25,6 +27,7 @@ export type Calculator = {
 export type CalculatorValues = Record<string, Record<string, string>>;
 
 export type PersistedState = {
+  schemaVersion?: number;
   calculators: Calculator[];
   values: CalculatorValues;
 };
