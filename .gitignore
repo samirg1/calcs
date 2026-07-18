@@ -39,6 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+/builds
 
 # local coding-agent settings
 .claude/
