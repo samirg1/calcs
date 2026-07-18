@@ -69,10 +69,10 @@ export function CalculatorEditor({ calculator, visible, onClose, onSave, onDelet
     const name = draft.name.trim();
     if (!name) return Alert.alert('Name your calculator', 'Add a short name so you can find it later.');
     if (draft.variables.some((item) => !item.name.trim() || !item.key)) {
-      return Alert.alert('Finish the inputs', 'Every input needs a name.');
+      return Alert.alert('Finish the base values', 'Every base value needs a name.');
     }
     if (draft.formulas.some((item) => !item.name.trim() || !item.key || !item.expression.trim())) {
-      return Alert.alert('Finish the results', 'Every result needs a name and formula.');
+      return Alert.alert('Finish the calculated values', 'Every calculated value needs a name and formula.');
     }
 
     const keys = [...draft.variables, ...draft.formulas].map((item) => item.key);
@@ -119,7 +119,7 @@ export function CalculatorEditor({ calculator, visible, onClose, onSave, onDelet
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled">
-          <Text style={styles.intro}>Set the inputs and formulas for this calculator.</Text>
+          <Text style={styles.intro}>Define the values and their relationships. Every value will be editable in the calculator.</Text>
 
           <FieldLabel label="Calculator name" />
           <TextInput
@@ -133,7 +133,7 @@ export function CalculatorEditor({ calculator, visible, onClose, onSave, onDelet
             value={draft.name}
           />
 
-          <SectionHeader number="01" title="Inputs" description="The values you’ll type each time." />
+          <SectionHeader number="01" title="Base values" description="Independent values used by your formulas." />
           <View style={styles.group}>
             {draft.variables.map((variable, index) => (
               <View key={variable.id} style={[styles.builderRow, index > 0 && styles.rowDivider]}>
@@ -160,7 +160,7 @@ export function CalculatorEditor({ calculator, visible, onClose, onSave, onDelet
           </View>
           <NativeAction label="Add variable" onPress={() => setDraft((current) => ({ ...current, variables: [...current.variables, emptyVariable()] }))} />
 
-          <SectionHeader number="02" title="Results" description="Calculated instantly, from top to bottom." />
+          <SectionHeader number="02" title="Calculated values" description="Formula-driven values that remain directly editable." />
           {draft.formulas.map((formula, index) => (
             <View key={formula.id} style={styles.formulaCard}>
               <View style={styles.formulaHeader}>

@@ -1,10 +1,12 @@
 # Calcs
 
-Calcs is a small iOS app for turning formulas you reuse into live, saved worksheets. Add one or more inputs, describe the results with formulas, and every output updates as you type.
+Calcs is a small iOS app for turning formulas you reuse into live, saved worksheets. Every displayed value is editable: change a calculated value and Calcs solves backward for its source, then updates the rest.
 
 ## Features
 
-- Multiple inputs and calculated results per calculator
+- Bidirectional values: edit a base or calculated value and the others update
+- Multiple base values and calculated values per calculator
+- Collapsible calculator cards
 - Results can reference inputs and earlier results
 - Safe formula parser: no arbitrary JavaScript evaluation
 - Local, offline persistence for calculators and values

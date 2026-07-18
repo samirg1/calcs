@@ -1,7 +1,8 @@
-import { memo, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { memo, useMemo, useState } from 'react';
+import { LayoutAnimation, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { evaluateFormula, formatResult } from '../formula';
+import { calculateScope, editableNumber, solveForSourceValue, sourceVariablesForFormula } from '../calculatorEngine';
+import { formatResult } from '../formula';
 import { Calculator } from '../types';
 
 type Props = {
@@ -17,34 +18,47 @@ export const CalculatorCard = memo(function CalculatorCard({
   onChangeValue,
   onEdit,
 }: Props) {
-  const results = useMemo(() => {
-    const hasAllInputs = calculator.variables.every((variable) => values[variable.key]?.trim());
-    if (!hasAllInputs) return calculator.formulas.map(() => '—');
+  const [collapsed, setCollapsed] = useState(false);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [preferredSourceKey, setPreferredSourceKey] = useState(calculator.variables[0]?.key ?? '');
+  const calculated = useMemo(() => calculateScope(calculator, values), [calculator, values]);
 
-    const scope: Record<string, number> = {};
-    for (const variable of calculator.variables) {
-      const parsed = Number(values[variable.key].replace(/,/g, ''));
-      if (!Number.isFinite(parsed)) return calculator.formulas.map(() => 'Invalid input');
-      scope[variable.key] = parsed;
-    }
+  const toggleCollapsed = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setCollapsed((current) => !current);
+    void Haptics.selectionAsync();
+  };
 
-    return calculator.formulas.map((formula) => {
-      try {
-        const result = evaluateFormula(formula.expression, scope);
-        scope[formula.key] = result;
-        return formatResult(result, formula.format, formula.decimals);
-      } catch {
-        return 'Check formula';
-      }
-    });
-  }, [calculator, values]);
+  const changeCalculatedValue = (formulaKey: string, text: string) => {
+    setDraftValues((current) => ({ ...current, [formulaKey]: text }));
+    const numericText = text.replace(/[^0-9eE+.-]/g, '');
+    if (!numericText || numericText === '-' || numericText === '+' || numericText === '.') return;
+    const target = Number(numericText);
+    if (!Number.isFinite(target) || !calculated.complete || calculated.error) return;
+
+    const sources = sourceVariablesForFormula(calculator, formulaKey);
+    const sourceKey = sources.includes(preferredSourceKey) ? preferredSourceKey : sources[0];
+    if (!sourceKey) return;
+    const solution = solveForSourceValue(calculator, calculated.scope, formulaKey, target, sourceKey);
+    if (solution === null) return;
+    setPreferredSourceKey(sourceKey);
+    onChangeValue(sourceKey, editableNumber(solution, 8));
+  };
 
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View style={styles.titleGroup}>
+        <Pressable
+          accessibilityLabel={`${collapsed ? 'Expand' : 'Collapse'} ${calculator.name}`}
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={toggleCollapsed}
+          style={({ pressed }) => [styles.titleGroup, pressed && styles.pressed]}
+        >
+          <Text style={[styles.chevron, !collapsed && styles.chevronExpanded]}>›</Text>
           <Text style={styles.title}>{calculator.name}</Text>
-        </View>
+        </Pressable>
         <Pressable
           accessibilityLabel={`Edit ${calculator.name}`}
           hitSlop={12}
@@ -58,39 +72,60 @@ export const CalculatorCard = memo(function CalculatorCard({
         </Pressable>
       </View>
 
-      <View style={styles.inputSection}>
-        {calculator.variables.map((variable, index) => (
-          <View key={variable.id} style={[styles.inputRow, index > 0 && styles.inputDivider]}>
-            <Text style={styles.inputLabel}>{variable.name}</Text>
-            <TextInput
-              accessibilityLabel={variable.name}
-              keyboardType="decimal-pad"
-              onChangeText={(value) => onChangeValue(variable.key, value)}
-              placeholder="0"
-              placeholderTextColor="#636366"
-              selectionColor="#0A84FF"
-              style={styles.input}
-              value={values[variable.key] ?? ''}
-            />
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.resultSection}>
-        {calculator.formulas.map((formula, index) => (
-          <View key={formula.id} style={[styles.resultRow, index > 0 && styles.resultDivider]}>
-            <Text style={styles.resultLabel}>{formula.name}</Text>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.72}
-              numberOfLines={1}
-              style={[styles.resultValue, results[index] === '—' && styles.emptyValue]}
-            >
-              {results[index]}
-            </Text>
-          </View>
-        ))}
-      </View>
+      {!collapsed && (
+        <View style={styles.valueSection}>
+          {calculator.variables.map((variable, index) => (
+            <View key={variable.id} style={[styles.valueRow, index > 0 && styles.valueDivider]}>
+              <Text style={styles.valueLabel}>{variable.name}</Text>
+              <TextInput
+                accessibilityLabel={variable.name}
+                keyboardType="decimal-pad"
+                onChangeText={(value) => {
+                  setPreferredSourceKey(variable.key);
+                  onChangeValue(variable.key, value);
+                }}
+                placeholder="0"
+                placeholderTextColor="#636366"
+                selectionColor="#0A84FF"
+                style={styles.input}
+                value={values[variable.key] ?? ''}
+              />
+            </View>
+          ))}
+          {calculator.formulas.map((formula) => {
+            const result = calculated.scope[formula.key];
+            const displayValue = calculated.error
+              ? 'Check formula'
+              : calculated.complete && result !== undefined
+                ? formatResult(result, formula.format, formula.decimals)
+                : '';
+            return (
+              <View key={formula.id} style={[styles.valueRow, styles.valueDivider]}>
+                <Text style={styles.valueLabel}>{formula.name}</Text>
+                <TextInput
+                  accessibilityLabel={formula.name}
+                  keyboardType="decimal-pad"
+                  onBlur={() => setActiveKey(null)}
+                  onChangeText={(text) => changeCalculatedValue(formula.key, text)}
+                  onFocus={() => {
+                    setActiveKey(formula.key);
+                    setDraftValues((current) => ({
+                      ...current,
+                      [formula.key]: result === undefined ? '' : editableNumber(result, Math.max(formula.decimals, 6)),
+                    }));
+                  }}
+                  placeholder="0"
+                  placeholderTextColor="#636366"
+                  selectTextOnFocus
+                  selectionColor="#0A84FF"
+                  style={styles.input}
+                  value={activeKey === formula.key ? draftValues[formula.key] ?? '' : displayValue}
+                />
+              </View>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 });
@@ -109,7 +144,9 @@ const styles = StyleSheet.create({
     minHeight: 58,
     paddingHorizontal: 16,
   },
-  titleGroup: { alignItems: 'center', flexDirection: 'row', flex: 1 },
+  titleGroup: { alignItems: 'center', flexDirection: 'row', flex: 1, minHeight: 44 },
+  chevron: { color: '#8E8E93', fontSize: 28, lineHeight: 30, marginLeft: -2, marginRight: 9, transform: [{ rotate: '0deg' }] },
+  chevronExpanded: { transform: [{ rotate: '90deg' }] },
   title: { color: '#FFFFFF', fontSize: 20, fontWeight: '600' },
   editButton: {
     alignItems: 'center',
@@ -119,16 +156,16 @@ const styles = StyleSheet.create({
   },
   editGlyph: { color: '#0A84FF', fontSize: 16 },
   pressed: { opacity: 0.6, transform: [{ scale: 0.97 }] },
-  inputSection: { borderTopColor: '#38383A', borderTopWidth: StyleSheet.hairlineWidth },
-  inputRow: {
+  valueSection: { borderTopColor: '#38383A', borderTopWidth: StyleSheet.hairlineWidth },
+  valueRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
     minHeight: 68,
     paddingHorizontal: 16,
   },
-  inputDivider: { borderTopColor: '#38383A', borderTopWidth: StyleSheet.hairlineWidth, marginLeft: 16 },
-  inputLabel: { color: '#FFFFFF', flex: 1, fontSize: 16 },
+  valueDivider: { borderTopColor: '#38383A', borderTopWidth: StyleSheet.hairlineWidth, marginLeft: 16 },
+  valueLabel: { color: '#FFFFFF', flex: 1, fontSize: 16 },
   input: {
     backgroundColor: '#2C2C2E',
     borderRadius: 9,
@@ -139,10 +176,4 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     textAlign: 'right',
   },
-  resultSection: { borderTopColor: '#38383A', borderTopWidth: StyleSheet.hairlineWidth, paddingLeft: 16 },
-  resultRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 54, paddingRight: 16 },
-  resultDivider: { borderTopColor: '#38383A', borderTopWidth: StyleSheet.hairlineWidth },
-  resultLabel: { color: '#FFFFFF', flex: 1, fontSize: 16 },
-  resultValue: { color: '#FFFFFF', flex: 1.35, fontSize: 18, fontVariant: ['tabular-nums'], fontWeight: '500', textAlign: 'right' },
-  emptyValue: { color: '#636366' },
 });
